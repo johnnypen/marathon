@@ -37,6 +37,7 @@ import mesosphere.marathon.core.task.jobs.TaskJobsModule
 import mesosphere.marathon.core.task.termination.TaskTerminationModule
 import mesosphere.marathon.core.task.tracker.InstanceTrackerModule
 import mesosphere.marathon.core.task.update.TaskStatusUpdateProcessor
+import mesosphere.marathon.scheduling.SchedulingModule
 import mesosphere.marathon.storage.{StorageConf, StorageModule}
 import mesosphere.marathon.stream.EnrichedFlow
 import mesosphere.util.NamedExecutionContext
@@ -218,6 +219,12 @@ class CoreModuleImpl @Inject() (
     () => marathonScheduler.getLocalRegion
   )
 
+  lazy val schedulingModule = new SchedulingModule(
+    launcherModule.offerProcessor,
+    instanceTrackerModule.instanceTracker,
+    taskStatusUpdateProcessor
+  )
+
   // PLUGINS
   override lazy val pluginModule = new PluginModule(marathonConf, crashStrategy)
 
@@ -280,7 +287,7 @@ class CoreModuleImpl @Inject() (
     metricsModule.metrics,
     marathonConf,
     leadershipModule,
-    instanceTrackerModule.instanceTracker,
+    schedulingModule,
     taskTerminationModule.taskKillService,
     appOfferMatcherModule.launchQueue,
     schedulerActions, // alternatively schedulerActionsProvider.get()
@@ -336,7 +343,7 @@ class CoreModuleImpl @Inject() (
     eventStream,
     taskTerminationModule.taskKillService)(schedulerActionsExecutionContext)
 
-  override lazy val marathonScheduler: MarathonScheduler = new MarathonScheduler(eventStream, launcherModule.offerProcessor, taskStatusUpdateProcessor, storageModule.frameworkIdRepository, mesosLeaderInfo, marathonConf)
+  override lazy val marathonScheduler: MarathonScheduler = new MarathonScheduler(eventStream, schedulingModule.scheduler, storageModule.frameworkIdRepository, mesosLeaderInfo, marathonConf)
 
   // MesosHeartbeatMonitor decorates MarathonScheduler
   override def mesosHeartbeatMonitor = new MesosHeartbeatMonitor(marathonScheduler, heartbeatActor)
